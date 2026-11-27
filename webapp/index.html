@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบคลัง & จัดซื้อ-ตรวจรับ-ประเมินผู้ขาย | กลุ่มงานเทคนิคการแพทย์ รพ.โนนสะอาด</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #1b365d;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --green: #059669;
+      --red: #dc2626;
+      --amber: #d97706;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Sarabun', sans-serif; margin: 0; background: var(--bg); color: #1e293b; font-size: 14px; }
+    header { background: var(--navy); color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    header h1 { margin: 0; font-size: 17px; }
+    header small { opacity: 0.85; font-size: 12px; }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    nav { background: #fff; border-bottom: 1px solid var(--border); display: flex; gap: 4px; padding: 8px 16px; overflow-x: auto; }
+    .tab-btn { border: none; background: transparent; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; color: #475569; white-space: nowrap; }
+    .tab-btn.active { background: var(--navy); color: #fff; }
+    .tab-btn:hover:not(.active) { background: #e2e8f0; }
+    main { max-width: 1220px; margin: 16px auto; padding: 0 14px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .field label { font-size: 12px; font-weight: 600; color: #475569; }
+    input, select { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 13px; }
+    .btn { background: var(--navy); color: #fff; border: none; padding: 7px 13px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 13px; white-space: nowrap; }
+    .btn:hover { opacity: 0.92; }
+    .btn-green { background: var(--green); }
+    .btn-red { background: var(--red); }
+    .btn-amber { background: var(--amber); }
+    .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .kpi-box { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+    .kpi-box .num { font-size: 22px; font-weight: 700; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+    th { background: var(--navy); color: #fff; text-align: center; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    .center { text-align: center; }
+    .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; display: inline-block; white-space: nowrap; }
+    .b-ok { background: #dcfce7; color: #166534; }
+    .b-warn { background: #fef3c7; color: #92400e; }
+    .b-red { background: #fee2e2; color: #991b1b; }
+    .b-blue { background: #dbeafe; color: #1e40af; }
+    .info-banner { background: #eff6ff; border-left: 4px solid #2563eb; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+    .modal { background: #fff; border-radius: 10px; max-width: 840px; width: 100%; max-height: 90vh; overflow: auto; padding: 18px; }
+    @media print {
+      header, nav, .no-print { display: none !important; }
+      body { background: #fff; }
+      main { margin: 0; padding: 0; max-width: 100%; }
+      .card { border: none; box-shadow: none; padding: 0; }
+      input { border: none; background: transparent; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="no-print">
+    <div>
+      <h1>ระบบคลัง & จัดซื้อ-ตรวจรับ-ประเมินผู้ขาย LAB</h1>
+      <small>กลุ่มงานเทคนิคการแพทย์ โรงพยาบาลโนนสะอาด | ISO 15189:2022 • LA • HA • Poka-Yoke</small>
+    </div>
+    <div class="header-actions">
+      <span id="userBadge" class="badge b-warn" style="cursor:pointer" onclick="openUserModal()" title="คลิกเพื่อเปลี่ยนผู้ใช้งาน">ผู้รับผิดชอบ: ศิริพร</span>
+      <span id="connStatus" class="badge b-blue">โหมดทดลอง (Local)</span>
+      <button class="btn btn-outline" style="background:#fff" onclick="openSettings()">ตั้งค่าเชื่อมชีต</button>
+    </div>
+  </header>
+
+  <nav class="no-print">
+    <button class="tab-btn active" onclick="switchTab('stock', this)">1. รายงานคงคลัง & เสนอซื้อ</button>
+    <button class="tab-btn" onclick="switchTab('approve', this)">2. หัวหน้าอนุมัติ & ใบสั่งซื้อ <span id="cntPr"></span></button>
+    <button class="tab-btn" onclick="switchTab('receive', this)">3. ติดตาม & ตรวจรับ (Partial) <span id="cntPo"></span></button>
+    <button class="tab-btn" onclick="switchTab('eval', this)">4. ประเมินผู้ขาย F-LAB-91 <span id="cntEval"></span></button>
+    <button class="tab-btn" onclick="switchTab('audit', this)">5. ประวัติย้อนหลัง (Audit Log)</button>
+  </nav>
+
+  <main id="mainContent"></main>
+
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal" id="modalBody"></div>
+  </div>
+
+  <script src="data/seed.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
