@@ -56,7 +56,8 @@ function loadState() {
   if (!st) {
     st = {
       apiUrl: '',
-      currentUser: { name: 'ศิริพร', role: 'staff' },
+      currentUser: { name: 'ศิริพร', position: 'เจ้าพนักงานวิทยาศาสตร์การแพทย์', role: 'staff' },
+      staffPin: '1111',
       headPin: '1234',
       items: (window.SEED_ITEMS || []).map(x => ({ ...x })),
       vendors: (window.SEED_VENDORS || []).map(x => ({ ...x })),
@@ -64,7 +65,8 @@ function loadState() {
       logs: [{ id: 'LOG-001', ts: new Date().toISOString(), user: 'System', action: 'INIT', detail: 'เริ่มต้นระบบ Web App พร้อมข้อมูล 207 รายการ' }]
     };
   }
-  if (!st.currentUser) st.currentUser = { name: 'ศิริพร', role: 'staff' };
+  if (!st.currentUser) st.currentUser = { name: 'ศิริพร', position: 'นักเทคนิคการแพทย์', role: 'staff' };
+  if (!st.staffPin) st.staffPin = '1111';
   if (!st.headPin) st.headPin = '1234';
   return st;
 }
@@ -76,7 +78,7 @@ function saveState() {
 
 function addLog(action, detail) {
   const id = 'LOG-' + String(STATE.logs.length + 1).padStart(3, '0');
-  const actor = `${STATE.currentUser.name} (${STATE.currentUser.role === 'head' ? 'หัวหน้า' : 'ผู้รับผิดชอบ'})`;
+  const actor = `${STATE.currentUser.name} (${STATE.currentUser.position || ''} - ${STATE.currentUser.role === 'head' ? 'หัวหน้า' : 'ผู้รับผิดชอบ'})`;
   STATE.logs.unshift({ id, ts: new Date().toISOString(), user: actor, action, detail });
 }
 
@@ -128,11 +130,13 @@ function updateBadges() {
   document.getElementById('cntPo').innerHTML = openPo ? `<span class="badge b-blue">${openPo}</span>` : '';
   document.getElementById('cntEval').innerHTML = pendingEval ? `<span class="badge b-red">${pendingEval}</span>` : '';
   document.getElementById('connStatus').innerText = STATE.apiUrl ? 'เชื่อม Google Sheets แล้ว' : 'โหมดทดลอง (Local)';
+  const syncBtn = document.getElementById('syncBtn');
+  if (syncBtn) syncBtn.style.display = STATE.apiUrl ? 'inline-block' : 'none';
 
   const ub = document.getElementById('userBadge');
   ub.innerText = STATE.currentUser.role === 'head'
-    ? `หัวหน้า: ${STATE.currentUser.name}`
-    : `ผู้รับผิดชอบ: ${STATE.currentUser.name}`;
+    ? `หัวหน้า: ${STATE.currentUser.name} (${STATE.currentUser.position || ''})`
+    : `ผู้รับผิดชอบ: ${STATE.currentUser.name} (${STATE.currentUser.position || ''})`;
   ub.className = STATE.currentUser.role === 'head' ? 'badge b-ok' : 'badge b-warn';
 }
 
@@ -349,8 +353,8 @@ function renderApproveTab() {
 
 function approvePR(prId) {
   if (STATE.currentUser.role !== 'head') {
-    if (!confirm('⚠️ คุณกำลังใช้งานในบทบาท "ผู้รับผิดชอบ" ต้องการสลับเป็น "หัวหน้า" เพื่ออนุมัติหรือไม่?')) return;
-    openUserModal();
+    if (!confirm('คุณกำลังใช้งานในบทบาท "ผู้รับผิดชอบ" ต้องการสลับเป็น "หัวหน้า" เพื่ออนุมัติหรือไม่?')) return;
+    openLoginModal();
     return;
   }
   const due = document.getElementById('due_' + prId).value;
@@ -368,30 +372,40 @@ function approvePR(prId) {
 
   const dt = todayIso();
   const createdPOs = [];
+  const poMap = {};
+  const poRecords = [];
   Object.keys(byVendor).forEach(v => {
     const poNum = new Set(STATE.pos.map(p => p.poId)).size + 1;
     const poId = 'PO-2570-' + String(poNum).padStart(3, '0');
     createdPOs.push(poId);
+    const vObj = STATE.vendors.find(x => x.name === v) || {};
     byVendor[v].forEach(l => {
-      STATE.pos.push({
-        poId, prId, orderDate: dt, dueDate: due, vendor: v,
-        itemId: l.itemId, name: l.name, group: l.group,
+      poMap[l.itemId] = poId;
+      const rec = {
+        poId, prId, orderDate: dt, dueDate: due, vendor: v, vendorId: vObj.vendorId || 'V-001',
+        itemId: l.itemId, name: l.name, group: l.group, requester: l.requester,
         ordered: l.appQty, received: 0, unitPrice: l.unitPrice, status: 'รอรับของ'
-      });
+      };
+      STATE.pos.push(rec);
+      poRecords.push(rec);
     });
   });
 
+  const approverFull = `${STATE.currentUser.name} (${STATE.currentUser.position || 'หัวหน้าห้องปฏิบัติการ'})`;
   addLog('APPROVE_PR', `อนุมัติ ${prId} -> ออกเลข ${createdPOs.join(', ')}`);
   saveState();
-  alert(`✅ อนุมัติ ${prId} เรียบร้อย ออกใบสั่งซื้อ: ${createdPOs.join(', ')}`);
+  syncToApi('approvePR', { prId, approver: approverFull, qtyMap, poMap, createdPOs: poRecords });
+  alert(`อนุมัติ ${prId} เรียบร้อย ออกใบสั่งซื้อ: ${createdPOs.join(', ')}`);
   renderApproveTab();
 }
 
 function rejectPR(prId) {
-  if (STATE.currentUser.role !== 'head') { alert('⚠️ เฉพาะบทบาท "หัวหน้า" เท่านั้นที่ไม่อนุมัติได้'); return openUserModal(); }
+  if (STATE.currentUser.role !== 'head') { alert('เฉพาะบทบาท "หัวหน้า" เท่านั้นที่ไม่อนุมัติได้'); return openLoginModal(); }
   STATE.prs.filter(p => p.prId === prId && p.status === 'รออนุมัติ').forEach(p => { p.status = 'ไม่อนุมัติ'; });
+  const approverFull = `${STATE.currentUser.name} (${STATE.currentUser.position || 'หัวหน้าห้องปฏิบัติการ'})`;
   addLog('REJECT_PR', `ไม่อนุมัติ ${prId}`);
   saveState();
+  syncToApi('rejectPR', { prId, approver: approverFull });
   renderApproveTab();
 }
 
@@ -485,7 +499,8 @@ function submitReceive(poIdx) {
   const inv = document.getElementById('mInv').value.trim() || '-';
   const lot = document.getElementById('mLot').value.trim() || '-';
 
-  STATE.receives.push({ rcvId, poId: p.poId, itemId: p.itemId, name: p.name, recDate, invoiceNo: inv, lot, expDate, qty, releaseStatus: rel });
+  const recObj = { rcvId, poId: p.poId, itemId: p.itemId, name: p.name, recDate, invoiceNo: inv, lot, expDate, qty, releaseStatus: rel, packCond: document.getElementById('mPack').value, temp: document.getElementById('mTemp').value, coa: document.getElementById('mCoa').value };
+  STATE.receives.push(recObj);
   if (rel !== 'ปฏิเสธรับ') p.received += qty;
   if (rel === 'พร้อมใช้') {
     const it = STATE.items.find(x => x.itemId === p.itemId);
@@ -493,10 +508,11 @@ function submitReceive(poIdx) {
   }
   addLog('RECEIVE', `${rcvId} (${p.poId}) รับ ${qty} | บิล:${inv} | Lot:${lot} | ${rel}`);
   saveState();
+  syncToApi('receive', recObj);
   closeModal();
   renderReceiveTab();
   if (rel !== 'ปฏิเสธรับ') {
-    alert(`✅ บันทึกตรวจรับ ${rcvId} เรียบร้อย! (รายการนี้ไปรอให้ประเมินผู้ขาย F-LAB-91 ในแท็บที่ 4 แล้วครับ)`);
+    alert(`บันทึกตรวจรับ ${rcvId} เรียบร้อย (รายการนี้ไปรอประเมินผู้ขาย F-LAB-91 ในแท็บที่ 4 แล้ว)`);
   }
 }
 
@@ -512,6 +528,7 @@ function releaseQC(rcvIdx, pass) {
   }
   addLog('QC_RELEASE', `${r.rcvId} ผล QC = ${pass ? 'ผ่าน (ขึ้นคลัง)' : 'ไม่ผ่าน'}`);
   saveState();
+  syncToApi('qcRelease', { rcvId: r.rcvId, pass });
   renderReceiveTab();
 }
 
@@ -601,16 +618,18 @@ function saveEval(delivIdx) {
   const result = Number(pct) > 80 ? 'ผ่าน' : 'ไม่ผ่าน';
   const evalId = 'EV-2570-' + String(STATE.evals.length + 1).padStart(3, '0');
 
-  STATE.evals.push({
-    evalId, deliveryKey: d.deliveryKey, poId: d.poId, vendorName: d.vendor,
+  const evalObj = {
+    evalId, deliveryKey: d.deliveryKey, poId: d.poId, vendorId: v.vendorId || 'V-001', vendorName: d.vendor,
     vendorAddr: v.addr || '-', vendorTel: v.tel || '-', vendorRep: v.rep || '-',
     vendorRepTel: v.repTel || '-', vendorType: v.type || 'ตัวแทนจำหน่าย',
     invoiceNo: document.getElementById('fInv').value, orderDate: d.orderDate, recDate: d.recDate,
     criteria: crit, passCount, failCount, pct, result,
     evaluator: document.getElementById('fUser').value, evalDate: todayIso()
-  });
+  };
+  STATE.evals.push(evalObj);
   addLog('EVAL_FLAB91', `${evalId} (${d.vendor} / บิล ${d.invoiceNo}) ได้ ${pct}% -> ${result}`);
   saveState();
+  syncToApi('saveEval', evalObj);
   closeModal();
   renderEvalTab();
 }
@@ -722,36 +741,41 @@ function renderAuditTab() {
     </div>`;
 }
 
-function openUserModal() {
+function openLoginModal() {
   document.getElementById('modalBody').innerHTML = `
-    <h3 style="margin-top:0">สลับผู้ใช้งาน (แยกสิทธิ์ผู้รับผิดชอบ vs หัวหน้า)</h3>
+    <h3 style="margin-top:0">เข้าสู่ระบบ (ระบุชื่อ-ตำแหน่งสำหรับบันทึกอนุมัติ & Audit Log)</h3>
     <div class="toolbar">
-      <div class="field"><label>ชื่อผู้ใช้งาน</label><input id="uName" value="${STATE.currentUser.name}"></div>
+      <div class="field"><label>ชื่อ-นามสกุล</label><input id="uName" value="${STATE.currentUser.name}" placeholder="เช่น นางสาวมาริณี วัยอุดานนท์"></div>
+      <div class="field"><label>ตำแหน่ง</label><input id="uPos" value="${STATE.currentUser.position || ''}" placeholder="เช่น นักเทคนิคการแพทย์ชำนาญการ"></div>
       <div class="field"><label>บทบาท</label>
-        <select id="uRole" onchange="document.getElementById('pinWrap').style.display=this.value==='head'?'flex':'none'">
+        <select id="uRole">
           <option value="staff" ${STATE.currentUser.role==='staff'?'selected':''}>ผู้รับผิดชอบคลัง</option>
-          <option value="head" ${STATE.currentUser.role==='head'?'selected':''}>หัวหน้ากลุ่มงาน (ใช้ PIN)</option>
+          <option value="head" ${STATE.currentUser.role==='head'?'selected':''}>หัวหน้าห้องปฏิบัติการ</option>
         </select>
       </div>
-      <div class="field" id="pinWrap" style="display:${STATE.currentUser.role==='head'?'flex':'none'}">
-        <label>รหัส PIN หัวหน้า (ค่าเริ่มต้น: 1234)</label><input id="uPin" type="password" placeholder="PIN 4 หลัก">
+      <div class="field"><label>รหัสผ่าน (PIN)</label>
+        <input id="uPin" type="password" placeholder="ผู้รับผิดชอบ: 1111 / หัวหน้า: 1234">
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
-      <button class="btn btn-green" onclick="switchUser()">ตกลง</button>
+      <button class="btn btn-green" onclick="doLogin()">เข้าสู่ระบบ</button>
     </div>`;
   document.getElementById('modalBackdrop').style.display = 'flex';
 }
 
-function switchUser() {
+function doLogin() {
   const role = document.getElementById('uRole').value;
-  const name = document.getElementById('uName').value.trim() || 'ผู้ใช้งาน';
-  if (role === 'head') {
-    const pin = document.getElementById('uPin').value;
-    if (pin !== STATE.headPin) return alert('❌ รหัส PIN หัวหน้าไม่ถูกต้อง (ค่าเริ่มต้นคือ 1234)');
-  }
-  STATE.currentUser = { name, role };
+  const name = document.getElementById('uName').value.trim();
+  const pos = document.getElementById('uPos').value.trim();
+  const pin = document.getElementById('uPin').value.trim();
+  if (!name) return alert('กรุณากรอกชื่อ-นามสกุล');
+  const expected = role === 'head' ? STATE.headPin : STATE.staffPin;
+  if (pin !== expected) return alert('รหัสผ่าน (PIN) ไม่ถูกต้อง');
+
+  STATE.currentUser = { name, position: pos, role };
+  sessionStorage.setItem('lab_logged_in', '1');
+  addLog('LOGIN', `เข้าสู่ระบบ: ${name} (${pos})`);
   saveState();
   closeModal();
   render();
@@ -759,30 +783,62 @@ function switchUser() {
 
 function openSettings() {
   document.getElementById('modalBody').innerHTML = `
-    <h3 style="margin-top:0">ตั้งค่าเชื่อมต่อ Google Sheets & รหัส PIN หัวหน้า</h3>
+    <h3 style="margin-top:0">ตั้งค่าเชื่อมต่อ Google Sheets & เปลี่ยนรหัสผ่าน</h3>
     <div class="field"><label>Apps Script Web App URL (เว้นว่าง = โหมดทดลอง Local)</label>
       <input id="sApi" value="${STATE.apiUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
     </div><br>
-    <div class="field"><label>เปลี่ยนรหัส PIN หัวหน้า (ปัจจุบัน: ${STATE.headPin})</label>
-      <input id="sPin" value="${STATE.headPin}">
-    </div><br>
-    <div style="display:flex;gap:8px;justify-content:space-between">
-      <button class="btn btn-red" onclick="if(confirm('รีเซ็ตข้อมูลทดลองทั้งหมด?')){localStorage.removeItem('${STORE_KEY}');location.reload();}">🗑️ รีเซ็ตข้อมูลทดลอง</button>
+    <div class="toolbar">
+      <div class="field"><label>รหัส PIN ผู้รับผิดชอบ (ปัจจุบัน: ${STATE.staffPin})</label><input id="sStaffPin" value="${STATE.staffPin}"></div>
+      <div class="field"><label>รหัส PIN หัวหน้า (ปัจจุบัน: ${STATE.headPin})</label><input id="sHeadPin" value="${STATE.headPin}"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:10px">
+      <button class="btn btn-red" onclick="if(confirm('รีเซ็ตข้อมูลทดลองทั้งหมด?')){localStorage.removeItem('${STORE_KEY}');sessionStorage.removeItem('lab_logged_in');location.reload();}">รีเซ็ตข้อมูลทดลอง</button>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-        <button class="btn btn-green" onclick="STATE.apiUrl=document.getElementById('sApi').value.trim();STATE.headPin=document.getElementById('sPin').value.trim()||'1234';saveState();closeModal();render();">บันทึก</button>
+        <button class="btn btn-green" onclick="saveSettings()">บันทึกการตั้งค่า</button>
       </div>
     </div>`;
   document.getElementById('modalBackdrop').style.display = 'flex';
+}
+
+function saveSettings() {
+  STATE.apiUrl = document.getElementById('sApi').value.trim();
+  STATE.staffPin = document.getElementById('sStaffPin').value.trim() || '1111';
+  STATE.headPin = document.getElementById('sHeadPin').value.trim() || '1234';
+  saveState();
+  closeModal();
+  if (STATE.apiUrl) loadFromGoogleSheets();
+  else render();
 }
 
 function closeModal() { document.getElementById('modalBackdrop').style.display = 'none'; }
 
 async function syncToApi(action, payload) {
   if (!STATE.apiUrl) return;
+  const actor = `${STATE.currentUser.name} (${STATE.currentUser.position || ''})`;
   try {
-    await fetch(STATE.apiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload }) });
+    await fetch(STATE.apiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload, actor }) });
   } catch (e) { console.warn('API sync:', e); }
 }
 
+async function loadFromGoogleSheets() {
+  if (!STATE.apiUrl) return;
+  try {
+    const r = await fetch(STATE.apiUrl);
+    const data = await r.json();
+    if (data && data.ok) {
+      if (data.items && data.items.length) STATE.items = data.items;
+      if (data.prs) STATE.prs = data.prs;
+      if (data.pos) STATE.pos = data.pos;
+      if (data.receives) STATE.receives = data.receives;
+      if (data.evals) STATE.evals = data.evals;
+      if (data.logs && data.logs.length) STATE.logs = data.logs;
+      saveState();
+      render();
+    }
+  } catch (e) { alert('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: ' + e.message); }
+}
+
 render();
+if (STATE.apiUrl) loadFromGoogleSheets();
+if (!sessionStorage.getItem('lab_logged_in')) openLoginModal();

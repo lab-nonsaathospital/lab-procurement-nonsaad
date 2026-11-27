@@ -71,9 +71,10 @@
       <small>กลุ่มงานเทคนิคการแพทย์ โรงพยาบาลโนนสะอาด | ISO 15189:2022 • LA • HA • Poka-Yoke</small>
     </div>
     <div class="header-actions">
-      <span id="userBadge" class="badge b-warn" style="cursor:pointer" onclick="openUserModal()" title="คลิกเพื่อเปลี่ยนผู้ใช้งาน">ผู้รับผิดชอบ: ศิริพร</span>
+      <span id="userBadge" class="badge b-warn" style="cursor:pointer" onclick="openLoginModal()" title="คลิกเพื่อเปลี่ยนผู้ใช้งาน / ออกจากระบบ">ผู้รับผิดชอบ</span>
+      <button id="syncBtn" class="btn btn-outline" style="background:#fff;display:none" onclick="loadFromGoogleSheets()">ดึงข้อมูลล่าสุด</button>
       <span id="connStatus" class="badge b-blue">โหมดทดลอง (Local)</span>
-      <button class="btn btn-outline" style="background:#fff" onclick="openSettings()">ตั้งค่าเชื่อมชีต</button>
+      <button class="btn btn-outline" style="background:#fff" onclick="openSettings()">ตั้งค่า / เปลี่ยนรหัส</button>
     </div>
   </header>
 
