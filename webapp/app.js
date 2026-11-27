@@ -64,6 +64,7 @@ function loadState() {
   if (!st) {
     st = {
       apiUrl: '',
+      apiSecret: '',
       users: defaultUsers(),
       currentUser: null,
       items: (window.SEED_ITEMS || []).filter(x => x.group && x.group.trim() !== '').map(x => ({ ...x })),
@@ -73,6 +74,7 @@ function loadState() {
     };
   }
   st.items = (st.items || []).filter(x => x.group && x.group.trim() !== '');
+  if (st.apiSecret === undefined) st.apiSecret = '';
   if (!st.users || !st.users.length) st.users = defaultUsers();
   if (!st.users.some(u => u.role === 'admin')) st.users.push(defaultUsers()[2]);
   return st;
@@ -434,21 +436,26 @@ function rejectPR(prId) {
 // TAB 3: PO TRACKING, PARTIAL RECEIVING & QC QUARANTINE
 // ============================================================================
 function renderReceiveTab() {
+  const canClose = isHeadOrAdmin();
   const poRows = STATE.pos.map((p, idx) => {
     const rem = p.ordered - p.received;
-    const isOverdue = rem > 0 && p.dueDate && todayIso() > p.dueDate;
-    const st = rem <= 0 ? 'รับครบแล้ว ✔' : (p.received > 0 ? 'รับบางส่วน (Partial)' : (isOverdue ? 'เลยกำหนดส่ง' : 'รอรับของ'));
-    const cls = rem <= 0 ? 'b-ok' : (isOverdue ? 'b-red' : 'b-warn');
+    const isClosed = p.status === 'ปิดยอดแล้ว' || rem <= 0;
+    const isOverdue = !isClosed && p.dueDate && todayIso() > p.dueDate;
+    const st = p.status === 'ปิดยอดแล้ว' ? 'ปิดยอดแล้ว' : (rem <= 0 ? 'รับครบแล้ว ✔' : (p.received > 0 ? 'รับบางส่วน (Partial)' : (isOverdue ? 'เลยกำหนดส่ง' : 'รอรับของ')));
+    const cls = isClosed ? 'b-ok' : (isOverdue ? 'b-red' : 'b-warn');
     return `<tr>
       <td><b>${p.poId}</b><br><small>สั่ง ${toThaiShort(p.orderDate)}</small></td>
       <td>${p.vendor}</td>
       <td>${p.name}</td>
       <td class="center">${p.ordered}</td>
       <td class="center">${p.received}</td>
-      <td class="center"><b>${rem}</b></td>
+      <td class="center"><b>${isClosed ? 0 : rem}</b></td>
       <td class="center">${toThaiShort(p.dueDate)}</td>
       <td class="center"><span class="badge ${cls}">${st}</span></td>
-      <td class="center">${rem > 0 ? `<button class="btn btn-green" onclick="openReceiveModal(${idx})">ตรวจรับ</button>` : '-'}</td>
+      <td class="center">
+        ${!isClosed ? `<button class="btn btn-green" onclick="openReceiveModal(${idx})">ตรวจรับ</button>` : '-'}
+        ${!isClosed && canClose ? `<button class="btn btn-outline" style="margin-top:4px;font-size:12px;padding:4px 8px" onclick="forceClosePO(${idx})">ปิดยอด</button>` : ''}
+      </td>
     </tr>`;
   }).join('');
 
@@ -500,6 +507,10 @@ function openReceiveModal(poIdx) {
       <div class="field"><label>เอกสาร CoA</label><select id="mCoa"><option>ครบ</option><option>ไม่ครบ</option><option>ไม่ต้องมี</option></select></div>
       <div class="field"><label>สถานะปล่อยคลัง</label><select id="mRel"><option>พร้อมใช้</option><option>Quarantine (รอผล QC)</option><option>ปฏิเสธรับ</option></select></div>
     </div>
+    <div class="toolbar">
+      <div class="field" style="flex:2"><label>ลิงก์เอกสาร CoA / รูปใบส่งของ (Google Drive)</label><input id="mDoc" placeholder="วางลิงก์ Google Drive (ถ้ามี)"></div>
+      <div class="field" style="min-width:130px"><label>ประเภท</label><label style="display:flex;align-items:center;gap:6px;padding-top:6px"><input id="mFree" type="checkbox" style="width:auto"> ของแถม (0 บ.)</label></div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
       <button class="btn btn-green" onclick="submitReceive(${poIdx})">บันทึกตรวจรับ</button>
@@ -520,14 +531,22 @@ function submitReceive(poIdx) {
   const inv = document.getElementById('mInv').value.trim() || '-';
   const lot = document.getElementById('mLot').value.trim() || '-';
 
-  const recObj = { rcvId, poId: p.poId, itemId: p.itemId, name: p.name, recDate, invoiceNo: inv, lot, expDate, qty, releaseStatus: rel, packCond: document.getElementById('mPack').value, temp: document.getElementById('mTemp').value, coa: document.getElementById('mCoa').value };
+  const recObj = {
+    rcvId, poId: p.poId, itemId: p.itemId, name: p.name, recDate, invoiceNo: inv,
+    lot, expDate, qty, releaseStatus: rel,
+    packCond: document.getElementById('mPack').value,
+    temp: document.getElementById('mTemp').value,
+    coa: document.getElementById('mCoa').value,
+    docLink: document.getElementById('mDoc').value.trim(),
+    isFreebie: document.getElementById('mFree').checked
+  };
   STATE.receives.push(recObj);
   if (rel !== 'ปฏิเสธรับ') p.received += qty;
   if (rel === 'พร้อมใช้') {
     const it = STATE.items.find(x => x.itemId === p.itemId);
     if (it) it.stock += qty;
   }
-  addLog('RECEIVE', `${rcvId} (${p.poId}) รับ ${qty} | บิล:${inv} | Lot:${lot} | ${rel}`);
+  addLog('RECEIVE', `${rcvId} (${p.poId}) รับ ${qty} | บิล:${inv} | Lot:${lot} | ${rel}${recObj.isFreebie ? ' [ของแถม]' : ''}`);
   saveState();
   syncToApi('receive', recObj);
   closeModal();
@@ -537,8 +556,23 @@ function submitReceive(poIdx) {
   }
 }
 
+function forceClosePO(poIdx) {
+  if (!isHeadOrAdmin()) return alert('🔒 เฉพาะหัวหน้า หรือ Admin เท่านั้นที่ปิดยอด PO ได้');
+  const p = STATE.pos[poIdx];
+  const reason = prompt(`ระบุเหตุผลในการปิดยอด PO ${p.poId} (${p.name} ค้าง ${p.ordered - p.received}):`, 'บริษัทเลิกผลิต / ไม่ต้องส่งยอดที่เหลือ');
+  if (!reason) return;
+  p.ordered = p.received;
+  p.status = 'ปิดยอดแล้ว';
+  addLog('FORCE_CLOSE_PO', `${p.poId} (${p.itemId}) ปิดยอดเหตุผล: ${reason}`);
+  saveState();
+  syncToApi('forceClosePO', { poId: p.poId, itemId: p.itemId, reason });
+  renderReceiveTab();
+}
+
 function releaseQC(rcvIdx, pass) {
   const r = STATE.receives[rcvIdx];
+  const qcNote = prompt(pass ? `บันทึกผลเทียบ QC Lot ใหม่ (${r.lot}) เช่น Mean/%CV ผ่านเกณฑ์:` : `ระบุสาเหตุที่ไม่ผ่าน QC (${r.lot}):`, pass ? 'Lot-to-Lot ผ่านเกณฑ์' : 'QC ไม่ผ่าน');
+  if (qcNote === null) return;
   r.releaseStatus = pass ? 'พร้อมใช้' : 'ปฏิเสธรับ';
   if (pass) {
     const it = STATE.items.find(x => x.itemId === r.itemId);
@@ -547,9 +581,9 @@ function releaseQC(rcvIdx, pass) {
     const po = STATE.pos.find(p => p.poId === r.poId && p.itemId === r.itemId);
     if (po) po.received = Math.max(0, po.received - r.qty);
   }
-  addLog('QC_RELEASE', `${r.rcvId} ผล QC = ${pass ? 'ผ่าน (ขึ้นคลัง)' : 'ไม่ผ่าน'}`);
+  addLog('QC_RELEASE', `${r.rcvId} ผล QC = ${pass ? 'ผ่าน (ขึ้นคลัง)' : 'ไม่ผ่าน'} | ${qcNote}`);
   saveState();
-  syncToApi('qcRelease', { rcvId: r.rcvId, pass });
+  syncToApi('qcRelease', { rcvId: r.rcvId, pass, qcNote });
   renderReceiveTab();
 }
 
@@ -576,6 +610,16 @@ function renderEvalTab() {
     <td class="center"><span class="badge ${e.result==='ผ่าน'?'b-ok':'b-red'}">${e.result}</span></td>
     <td class="center"><button class="btn" onclick="printFLab91(${i})">🖨️ พิมพ์ F-LAB-91 (A4)</button></td></tr>`).join('');
 
+  // Annual AVL Summary per Vendor
+  const avlRows = STATE.vendors.map(v => {
+    const vEvals = STATE.evals.filter(e => e.vendorName === v.name);
+    if (!vEvals.length) return `<tr><td>${v.vendorId}</td><td>${v.name}</td><td class="center">0</td><td class="center">-</td><td class="center"><span class="badge b-blue">รอประเมิน</span></td></tr>`;
+    const avg = (vEvals.reduce((s, e) => s + Number(e.pct || 0), 0) / vEvals.length).toFixed(2);
+    const pass = Number(avg) > 80;
+    return `<tr><td>${v.vendorId}</td><td><b>${v.name}</b></td><td class="center">${vEvals.length}</td><td class="center"><b>${avg}%</b></td>
+      <td class="center"><span class="badge ${pass?'b-ok':'b-red'}">${pass?'Approved (>80%)':'ต้องทบทวน (<=80%)'}</span></td></tr>`;
+  }).join('');
+
   document.getElementById('mainContent').innerHTML = `
     <div class="info-banner no-print">
       <b>คำแนะนำการใช้งาน:</b> หน้านี้ใช้ประเมินผู้ขาย <b>ทุกรอบที่มีการส่งของเข้าแล็บ (อ้างอิงตามวันที่รับและเลขที่บิล Invoice)</b> แม้ว่าจะส่งมาแค่บางส่วนก็ตาม — ทันทีที่บันทึกตรวจรับในแท็บ 3 รายการจะมาปรากฏที่นี่โดยอัตโนมัติ
@@ -591,6 +635,10 @@ function renderEvalTab() {
       <table><tr><th>เลขประเมิน</th><th>เลข PO</th><th>บริษัท</th><th>วันที่รับ</th><th>เลขที่บิล</th><th>ร้อยละ</th><th>ผล</th><th>พิมพ์</th></tr>
         ${evalRows || '<tr><td colspan="8" class="center">ยังไม่มีประวัติการประเมิน</td></tr>'}
       </table>
+    </div>
+    <div class="card no-print">
+      <h3 style="margin-top:0">สรุปคะแนนประเมินผู้ขายรายปี (Approved Vendor List - AVL)</h3>
+      <table><tr><th>รหัสผู้ขาย</th><th>ชื่อบริษัทผู้ขาย</th><th>จำนวนรอบที่ประเมิน</th><th>คะแนนเฉลี่ย (%)</th><th>สถานะ AVL</th></tr>${avlRows}</table>
     </div>
     <div id="flabPrintArea" class="card" style="display:none"></div>`;
 }
@@ -763,8 +811,66 @@ function renderAuditTab() {
 }
 
 // ============================================================================
-// LOGIN GATE & USER MANAGEMENT
+// LOGIN GATE, 10-MIN IDLE TIMEOUT, 5-FAIL 3-MIN LOCKOUT & USER MANAGEMENT
 // ============================================================================
+const IDLE_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_PIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 3 * 60 * 1000; // 3 minutes
+const LOCK_KEY = 'lab_login_lock';
+let _idleTimer = null;
+let _lockInterval = null;
+
+function getLockState() {
+  try { return JSON.parse(localStorage.getItem(LOCK_KEY)) || { fails: 0, lockUntil: 0 }; }
+  catch (e) { return { fails: 0, lockUntil: 0 }; }
+}
+function setLockState(obj) { localStorage.setItem(LOCK_KEY, JSON.stringify(obj)); }
+
+function updateLockUI() {
+  const ls = getLockState();
+  const alertEl = document.getElementById('loginAlert');
+  const pinEl = document.getElementById('loginPin');
+  const btnEl = document.getElementById('loginSubmitBtn');
+  if (!alertEl || !pinEl || !btnEl) return;
+
+  const remMs = ls.lockUntil - Date.now();
+  if (remMs > 0) {
+    const sec = Math.ceil(remMs / 1000);
+    const m = Math.floor(sec / 60);
+    const s = String(sec % 60).padStart(2, '0');
+    alertEl.style.display = 'block';
+    alertEl.innerText = `🔒 ใส่รหัสผิดเกิน ${MAX_PIN_ATTEMPTS} ครั้ง ระบบล็อกชั่วคราว กรุณารอ ${m}:${s} นาที`;
+    pinEl.disabled = true;
+    btnEl.disabled = true;
+    btnEl.style.opacity = '0.5';
+    btnEl.style.cursor = 'not-allowed';
+  } else {
+    if (ls.lockUntil > 0) setLockState({ fails: 0, lockUntil: 0 });
+    pinEl.disabled = false;
+    btnEl.disabled = false;
+    btnEl.style.opacity = '1';
+    btnEl.style.cursor = 'pointer';
+    if (_lockInterval) { clearInterval(_lockInterval); _lockInterval = null; }
+    if (ls.fails === 0 && !alertEl.dataset.keepMsg) alertEl.style.display = 'none';
+  }
+}
+
+function resetIdleTimer() {
+  if (!sessionStorage.getItem('lab_logged_in')) return;
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    if (sessionStorage.getItem('lab_logged_in')) {
+      addLog('AUTO_TIMEOUT', 'ออกจากระบบอัตโนมัติ (ไม่มีการใช้งานเกิน 10 นาที)');
+      saveState();
+      logout('⏱️ ระบบออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งานเกิน 10 นาที');
+    }
+  }, IDLE_LIMIT_MS);
+}
+
+['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+  window.addEventListener(evt, resetIdleTimer, { passive: true });
+});
+
 function initLoginGate() {
   const sel = document.getElementById('loginUserSelect');
   sel.innerHTML = STATE.users.map((u, i) => `<option value="${i}">${u.name} (${roleLabel(u.role)})</option>`).join('');
@@ -772,11 +878,16 @@ function initLoginGate() {
   if (sessionStorage.getItem('lab_logged_in') && STATE.currentUser) {
     document.getElementById('loginGate').style.display = 'none';
     document.getElementById('appShell').style.display = 'block';
+    resetIdleTimer();
     render();
     if (STATE.apiUrl) loadFromGoogleSheets();
   } else {
     document.getElementById('loginGate').style.display = 'flex';
     document.getElementById('appShell').style.display = 'none';
+    updateLockUI();
+    if (getLockState().lockUntil > Date.now() && !_lockInterval) {
+      _lockInterval = setInterval(updateLockUI, 1000);
+    }
   }
 }
 
@@ -787,11 +898,32 @@ function onSelectLoginUser() {
 }
 
 function submitLogin() {
+  const ls = getLockState();
+  if (ls.lockUntil > Date.now()) { updateLockUI(); return; }
+
   const idx = document.getElementById('loginUserSelect').value;
   const u = STATE.users[idx];
   const pin = document.getElementById('loginPin').value.trim();
-  if (!u || pin !== u.pin) return alert('รหัสผ่าน (PIN) ไม่ถูกต้อง กรุณาลองใหม่');
+  const alertEl = document.getElementById('loginAlert');
+  delete alertEl.dataset.keepMsg;
 
+  if (!u || pin !== u.pin) {
+    const newFails = ls.fails + 1;
+    if (newFails >= MAX_PIN_ATTEMPTS) {
+      setLockState({ fails: newFails, lockUntil: Date.now() + LOCKOUT_MS });
+      document.getElementById('loginPin').value = '';
+      updateLockUI();
+      if (!_lockInterval) _lockInterval = setInterval(updateLockUI, 1000);
+    } else {
+      setLockState({ fails: newFails, lockUntil: 0 });
+      alertEl.style.display = 'block';
+      alertEl.innerText = `รหัสผ่าน (PIN) ไม่ถูกต้อง (เหลือโอกาสอีก ${MAX_PIN_ATTEMPTS - newFails} ครั้ง)`;
+    }
+    return;
+  }
+
+  setLockState({ fails: 0, lockUntil: 0 });
+  alertEl.style.display = 'none';
   STATE.currentUser = { id: u.id, name: u.name, position: u.position, role: u.role };
   sessionStorage.setItem('lab_logged_in', '1');
   document.getElementById('loginPin').value = '';
@@ -799,14 +931,22 @@ function submitLogin() {
   saveState();
   document.getElementById('loginGate').style.display = 'none';
   document.getElementById('appShell').style.display = 'block';
+  resetIdleTimer();
   render();
   if (STATE.apiUrl) loadFromGoogleSheets();
 }
 
-function logout() {
+function logout(timeoutMsg) {
+  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
   sessionStorage.removeItem('lab_logged_in');
   STATE.currentUser = null;
   initLoginGate();
+  if (timeoutMsg) {
+    const alertEl = document.getElementById('loginAlert');
+    alertEl.dataset.keepMsg = '1';
+    alertEl.style.display = 'block';
+    alertEl.innerText = timeoutMsg;
+  }
 }
 
 function openSettings() {
@@ -822,8 +962,13 @@ function openSettings() {
 
   document.getElementById('modalBody').innerHTML = `
     <h3 style="margin-top:0">ตั้งค่าเชื่อมต่อ Google Sheets & จัดการผู้ใช้งาน</h3>
-    <div class="field"><label>Apps Script Web App URL (เว้นว่าง = โหมดทดลอง Local)</label>
-      <input id="sApi" value="${STATE.apiUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
+    <div class="toolbar">
+      <div class="field" style="flex:2"><label>Apps Script Web App URL (เว้นว่าง = โหมดทดลอง Local)</label>
+        <input id="sApi" value="${STATE.apiUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="field"><label>API Secret (ถ้าตั้งใน B5 ของชีตตั้งค่า)</label>
+        <input id="sSec" value="${STATE.apiSecret || ''}" placeholder="เว้นว่างถ้าไม่ได้ตั้ง">
+      </div>
     </div>
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
     <h4 style="margin:0 0 8px 0">รายชื่อผู้ใช้งาน & เปลี่ยนรหัส PIN</h4>
@@ -870,11 +1015,13 @@ function deleteUser(idx) {
 
 function saveSettings() {
   STATE.apiUrl = document.getElementById('sApi').value.trim();
+  STATE.apiSecret = document.getElementById('sSec').value.trim();
   STATE.users.forEach((u, i) => {
     const inp = document.getElementById('upin_' + i);
     if (inp && inp.value.trim()) u.pin = inp.value.trim();
   });
   saveState();
+  syncToApi('saveUsers', { users: STATE.users });
   closeModal();
   if (STATE.apiUrl) loadFromGoogleSheets();
   else render();
@@ -884,19 +1031,32 @@ function closeModal() { document.getElementById('modalBackdrop').style.display =
 
 async function syncToApi(action, payload) {
   if (!STATE.apiUrl) return;
-  const actor = `${STATE.currentUser.name} (${STATE.currentUser.position || ''})`;
+  const actor = STATE.currentUser ? `${STATE.currentUser.name} (${STATE.currentUser.position || ''})` : 'WebApp';
   try {
-    await fetch(STATE.apiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload, actor }) });
-  } catch (e) { console.warn('API sync:', e); }
+    const r = await fetch(STATE.apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action, payload, actor, secret: STATE.apiSecret || '' })
+    });
+    const res = await r.json();
+    if (!res || !res.ok) {
+      alert('⚠️ แจ้งเตือนจาก Google Sheets: ' + ((res && res.error) || 'ไม่สามารถบันทึกได้'));
+    }
+  } catch (e) {
+    console.warn('API sync:', e);
+    alert('⚠️ ไม่สามารถเชื่อมต่อ Google Sheets ได้ กรุณาตรวจสอบอินเทอร์เน็ตหรือ URL ของ Apps Script');
+  }
 }
 
 async function loadFromGoogleSheets() {
   if (!STATE.apiUrl) return;
   try {
-    const r = await fetch(STATE.apiUrl);
+    const sep = STATE.apiUrl.includes('?') ? '&' : '?';
+    const url = STATE.apiSecret ? `${STATE.apiUrl}${sep}secret=${encodeURIComponent(STATE.apiSecret)}` : STATE.apiUrl;
+    const r = await fetch(url);
     const data = await r.json();
     if (data && data.ok) {
       if (data.items && data.items.length) STATE.items = data.items.filter(x => x.group && x.group.trim() !== '');
+      if (data.users && data.users.length) STATE.users = data.users;
       if (data.prs) STATE.prs = data.prs;
       if (data.pos) STATE.pos = data.pos;
       if (data.receives) STATE.receives = data.receives;
@@ -904,6 +1064,8 @@ async function loadFromGoogleSheets() {
       if (data.logs && data.logs.length) STATE.logs = data.logs;
       saveState();
       render();
+    } else if (data && data.error) {
+      alert('⚠️ Google Sheets แจ้งเตือน: ' + data.error);
     }
   } catch (e) { alert('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: ' + e.message); }
 }
