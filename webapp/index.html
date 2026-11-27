@@ -3,61 +3,188 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบคลัง & จัดซื้อ-ตรวจรับ-ประเมินผู้ขาย | กลุ่มงานเทคนิคการแพทย์ รพ.โนนสะอาด</title>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>ระบบคลัง & จัดซื้อ LAB | โรงพยาบาลโนนสะอาด</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --navy: #1b365d;
-      --bg: #f1f5f9;
-      --card: #ffffff;
-      --border: #cbd5e1;
-      --green: #059669;
-      --red: #dc2626;
-      --amber: #d97706;
+      /* 60-30-10 Medical Lab Color System: 60% Soft Canvas, 30% Crisp White Cards, 10% Teal-Sky Accent */
+      --bg: #f4fafc;
+      --card: rgba(255, 255, 255, 0.96);
+      --border: #dbeafe;
+      --text: #0f172a;
+      --muted: #475569;
+      --teal: #0f766e;
+      --teal-bright: #0d9488;
+      --teal-soft: #ccfbf1;
+      --sky: #0284c7;
+      --sky-soft: #e0f2fe;
+      --mint-soft: #d1fae5;
+      --rose-soft: #ffe4e6;
+      --amber-soft: #fef3c7;
+      --purple-soft: #ede9fe;
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Sarabun', sans-serif; margin: 0; background: var(--bg); color: #1e293b; font-size: 14px; }
-    header { background: var(--navy); color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-    header h1 { margin: 0; font-size: 17px; }
-    header small { opacity: 0.85; font-size: 12px; }
-    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    nav { background: #fff; border-bottom: 1px solid var(--border); display: flex; gap: 4px; padding: 8px 16px; overflow-x: auto; }
-    .tab-btn { border: none; background: transparent; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; color: #475569; white-space: nowrap; }
-    .tab-btn.active { background: var(--navy); color: #fff; }
-    .tab-btn:hover:not(.active) { background: #e2e8f0; }
-    main { max-width: 1220px; margin: 16px auto; padding: 0 14px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
-    .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
-    .field label { font-size: 12px; font-weight: 600; color: #475569; }
-    input, select { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 13px; }
-    .btn { background: var(--navy); color: #fff; border: none; padding: 7px 13px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 13px; white-space: nowrap; }
-    .btn:hover { opacity: 0.92; }
-    .btn-green { background: var(--green); }
-    .btn-red { background: var(--red); }
-    .btn-amber { background: var(--amber); }
-    .btn-outline { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
-    .kpi-box { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
-    .kpi-box .num { font-size: 22px; font-weight: 700; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-    th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
-    th { background: var(--navy); color: #fff; text-align: center; }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      margin: 0;
+      background:
+        linear-gradient(135deg, rgba(240, 249, 255, 0.72), rgba(240, 253, 250, 0.76)),
+        url('assets/lab-bg.jpg') center / cover no-repeat fixed;
+      background-color: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Full-Screen Login Gate */
+    #loginGate {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(18px);
+      border: 1px solid #bae6fd;
+      border-top: 6px solid var(--teal-bright);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(15, 118, 110, 0.14), 0 4px 16px rgba(2, 132, 199, 0.08);
+      max-width: 450px;
+      width: 100%;
+      padding: 40px 34px;
+    }
+    .login-logo {
+      width: 64px; height: 64px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #ccfbf1, #bae6fd);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px auto;
+      font-size: 30px;
+    }
+    .login-title { text-align: center; margin: 0 0 4px 0; font-size: 22px; font-weight: 700; color: var(--text); }
+    .login-sub { text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label { display: block; font-size: 13.5px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    .login-field input, .login-field select {
+      width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 12px;
+      font-family: inherit; font-size: 15px; background: #f8fafc; color: var(--text);
+    }
+    .login-field input:focus, .login-field select:focus {
+      outline: none; border-color: var(--teal-bright); background: #fff;
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.16);
+    }
+    .login-btn {
+      width: 100%; padding: 13px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      color: #fff; font-family: inherit; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-top: 8px; transition: 0.2s;
+      box-shadow: 0 6px 18px rgba(13, 148, 136, 0.28);
+    }
+    .login-btn:hover { transform: translateY(-1px); opacity: 0.95; }
+    .login-hint {
+      margin-top: 20px; padding: 12px 14px; border-radius: 12px;
+      background: #f0fdfa; border: 1px dashed #99f6e4;
+      font-size: 13px; color: var(--teal); text-align: center; line-height: 1.6;
+    }
+
+    /* Larger Header Bar & App Shell */
+    #appShell { display: none; }
+    header {
+      background: linear-gradient(135deg, #0f766e 0%, #0284c7 100%);
+      color: #fff;
+      padding: 20px 28px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;
+      box-shadow: 0 4px 16px rgba(15, 118, 110, 0.2);
+    }
+    header h1 { margin: 0 0 2px 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+    header small { opacity: 0.92; font-size: 13.5px; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    nav {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid #bae6fd;
+      display: flex; gap: 8px; padding: 12px 28px; overflow-x: auto;
+    }
+    .tab-btn {
+      border: 1px solid transparent; background: transparent; padding: 9px 16px;
+      border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600;
+      color: var(--muted); white-space: nowrap; transition: 0.15s;
+    }
+    .tab-btn.active { background: var(--teal-soft); color: var(--teal); border-color: #5eead4; }
+    .tab-btn:hover:not(.active) { background: #e0f2fe; color: #0369a1; }
+
+    main { max-width: 1260px; margin: 22px auto; padding: 0 18px; }
+    .card {
+      background: var(--card); border: 1px solid #dbeafe; border-radius: 16px;
+      padding: 22px; margin-bottom: 18px;
+      box-shadow: 0 4px 20px rgba(2, 132, 199, 0.05);
+    }
+    .toolbar { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 160px; }
+    .field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+    input, select {
+      padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 10px;
+      font-family: inherit; font-size: 14px; background: #f8fafc; color: var(--text);
+    }
+    input:focus, select:focus { outline: none; border-color: var(--teal-bright); background: #fff; }
+    input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+    .btn {
+      background: linear-gradient(135deg, #0d9488, #0284c7); color: #fff; border: none; padding: 9px 16px;
+      border-radius: 10px; cursor: pointer; font-family: inherit; font-weight: 600;
+      font-size: 14px; white-space: nowrap; transition: 0.15s;
+    }
+    .btn:hover { opacity: 0.92; transform: translateY(-1px); }
+    .btn-green { background: #10b981; }
+    .btn-red { background: #f43f5e; }
+    .btn-amber { background: #f59e0b; }
+    .btn-outline { background: #fff; color: var(--teal); border: 1px solid #99f6e4; }
+    .btn-outline:hover { background: #f0fdfa; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .kpi-box { background: #f8fafc; border: 1px solid #e2e8f0; border-top: 4px solid var(--sky); border-radius: 14px; padding: 14px; text-align: center; }
+    .kpi-box .num { font-size: 26px; font-weight: 700; margin-top: 2px; color: var(--text); }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+    th, td { border: 1px solid #e2e8f0; padding: 10px 12px; }
+    th { background: #e0f2fe; color: #0369a1; text-align: center; font-weight: 700; }
     tbody tr:nth-child(even) { background: #f8fafc; }
     .center { text-align: center; }
-    .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; display: inline-block; white-space: nowrap; }
-    .b-ok { background: #dcfce7; color: #166534; }
-    .b-warn { background: #fef3c7; color: #92400e; }
-    .b-red { background: #fee2e2; color: #991b1b; }
-    .b-blue { background: #dbeafe; color: #1e40af; }
-    .info-banner { background: #eff6ff; border-left: 4px solid #2563eb; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
-    .modal { background: #fff; border-radius: 10px; max-width: 840px; width: 100%; max-height: 90vh; overflow: auto; padding: 18px; }
+
+    .badge { padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; display: inline-block; white-space: nowrap; }
+    .b-ok { background: var(--mint-soft); color: #047857; }
+    .b-warn { background: var(--amber-soft); color: #b45309; }
+    .b-red { background: var(--rose-soft); color: #be123c; }
+    .b-blue { background: var(--sky-soft); color: #0369a1; }
+    .b-admin { background: var(--purple-soft); color: #6d28d9; }
+
+    .info-banner {
+      background: #f0fdfa; border-left: 4px solid #14b8a6;
+      padding: 12px 16px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; color: #115e59;
+    }
+    .lock-banner {
+      background: #fff1f2; border-left: 4px solid #f43f5e;
+      padding: 12px 16px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; color: #9f1239; font-weight: 600;
+    }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+    }
+    .modal { background: #fff; border-radius: 20px; max-width: 860px; width: 100%; max-height: 90vh; overflow: auto; padding: 26px; box-shadow: 0 20px 50px rgba(15,23,42,0.18); }
+
     @media print {
-      header, nav, .no-print { display: none !important; }
-      body { background: #fff; }
+      #loginGate, header, nav, .no-print { display: none !important; }
+      #appShell { display: block !important; }
+      body { background: #fff !important; font-size: 13px; }
       main { margin: 0; padding: 0; max-width: 100%; }
-      .card { border: none; box-shadow: none; padding: 0; }
+      .card { border: none; box-shadow: none; padding: 0; background: #fff; }
+      th { background: #f1f5f9 !important; color: #000 !important; border-color: #000 !important; }
+      td { border-color: #000 !important; padding: 6px 8px; }
       input { border: none; background: transparent; }
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; }
@@ -65,28 +192,62 @@
   </style>
 </head>
 <body>
-  <header class="no-print">
-    <div>
-      <h1>ระบบคลัง & จัดซื้อ-ตรวจรับ-ประเมินผู้ขาย LAB</h1>
-      <small>กลุ่มงานเทคนิคการแพทย์ โรงพยาบาลโนนสะอาด | ISO 15189:2022 • LA • HA • Poka-Yoke</small>
-    </div>
-    <div class="header-actions">
-      <span id="userBadge" class="badge b-warn" style="cursor:pointer" onclick="openLoginModal()" title="คลิกเพื่อเปลี่ยนผู้ใช้งาน / ออกจากระบบ">ผู้รับผิดชอบ</span>
-      <button id="syncBtn" class="btn btn-outline" style="background:#fff;display:none" onclick="loadFromGoogleSheets()">ดึงข้อมูลล่าสุด</button>
-      <span id="connStatus" class="badge b-blue">โหมดทดลอง (Local)</span>
-      <button class="btn btn-outline" style="background:#fff" onclick="openSettings()">ตั้งค่า / เปลี่ยนรหัส</button>
-    </div>
-  </header>
 
-  <nav class="no-print">
-    <button class="tab-btn active" onclick="switchTab('stock', this)">1. รายงานคงคลัง & เสนอซื้อ</button>
-    <button class="tab-btn" onclick="switchTab('approve', this)">2. หัวหน้าอนุมัติ & ใบสั่งซื้อ <span id="cntPr"></span></button>
-    <button class="tab-btn" onclick="switchTab('receive', this)">3. ติดตาม & ตรวจรับ (Partial) <span id="cntPo"></span></button>
-    <button class="tab-btn" onclick="switchTab('eval', this)">4. ประเมินผู้ขาย F-LAB-91 <span id="cntEval"></span></button>
-    <button class="tab-btn" onclick="switchTab('audit', this)">5. ประวัติย้อนหลัง (Audit Log)</button>
-  </nav>
+  <!-- FULL-SCREEN LOGIN GATE -->
+  <div id="loginGate">
+    <div class="login-card">
+      <div class="login-logo">🔬</div>
+      <h2 class="login-title">ระบบคลัง & จัดซื้อ-ตรวจรับ LAB</h2>
+      <div class="login-sub">กลุ่มงานเทคนิคการแพทย์ โรงพยาบาลโนนสะอาด</div>
 
-  <main id="mainContent"></main>
+      <div class="login-field">
+        <label>ผู้ใช้งาน</label>
+        <select id="loginUserSelect" onchange="onSelectLoginUser()"></select>
+      </div>
+      <div class="login-field">
+        <label>ตำแหน่ง</label>
+        <input id="loginPosition" readonly style="color:#475569;background:#f1f5f9">
+      </div>
+      <div class="login-field">
+        <label>รหัสผ่าน (PIN)</label>
+        <input id="loginPin" type="password" placeholder="กรอกรหัส PIN 4 หลัก" onkeydown="if(event.key==='Enter')submitLogin()">
+      </div>
+
+      <button class="login-btn" onclick="submitLogin()">เข้าสู่ระบบ</button>
+
+      <div class="login-hint">
+        <b>รหัสเริ่มต้น:</b> ผู้รับผิดชอบ <b>1111</b> | หัวหน้า <b>1234</b> | Admin <b>9999</b><br>
+        เพิ่มผู้ใช้และเปลี่ยนรหัสได้ที่เมนู <b>ตั้งค่า / จัดการผู้ใช้</b> (หัวหน้า & Admin)
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP SHELL -->
+  <div id="appShell">
+    <header class="no-print">
+      <div>
+        <h1>🔬 ระบบคลัง & จัดซื้อ-ตรวจรับ-ประเมินผู้ขาย LAB</h1>
+        <small>กลุ่มงานเทคนิคการแพทย์ โรงพยาบาลโนนสะอาด | ISO 15189:2022 • LA • HA</small>
+      </div>
+      <div class="header-actions">
+        <span id="userBadge" class="badge b-warn"></span>
+        <button id="syncBtn" class="btn btn-outline" style="display:none" onclick="loadFromGoogleSheets()">ดึงข้อมูลล่าสุด</button>
+        <span id="connStatus" class="badge b-blue">โหมดทดลอง</span>
+        <button id="settingsBtn" class="btn btn-outline" onclick="openSettings()">ตั้งค่า / จัดการผู้ใช้</button>
+        <button class="btn btn-outline" style="color:#be123c;border-color:#fecdd3" onclick="logout()">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <nav class="no-print">
+      <button class="tab-btn active" onclick="switchTab('stock', this)">1. รายงานคงคลัง & เสนอซื้อ</button>
+      <button class="tab-btn" onclick="switchTab('approve', this)">2. หัวหน้าอนุมัติ & ใบสั่งซื้อ <span id="cntPr"></span></button>
+      <button class="tab-btn" onclick="switchTab('receive', this)">3. ติดตาม & ตรวจรับ (Partial) <span id="cntPo"></span></button>
+      <button class="tab-btn" onclick="switchTab('eval', this)">4. ประเมินผู้ขาย F-LAB-91 <span id="cntEval"></span></button>
+      <button class="tab-btn" onclick="switchTab('audit', this)">5. ประวัติย้อนหลัง (Audit Log)</button>
+    </nav>
+
+    <main id="mainContent"></main>
+  </div>
 
   <div id="modalBackdrop" class="modal-backdrop">
     <div class="modal" id="modalBody"></div>

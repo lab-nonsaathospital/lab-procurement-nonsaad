@@ -49,6 +49,14 @@ const STORE_KEY = 'lab_proc_v3_state';
 let STATE = loadState();
 let CURRENT_TAB = 'stock';
 
+function defaultUsers() {
+  return [
+    { id: 'U-01', name: 'ศิริพร', position: 'เจ้าพนักงานวิทยาศาสตร์การแพทย์', role: 'staff', pin: '1111' },
+    { id: 'U-02', name: 'นางสาวมาริณี วัยอุดานนท์', position: 'นักเทคนิคการแพทย์ชำนาญการ (หัวหน้า)', role: 'head', pin: '1234' },
+    { id: 'U-00', name: 'ผู้ดูแลระบบ (Admin)', position: 'System Administrator', role: 'admin', pin: '9999' }
+  ];
+}
+
 function loadState() {
   const raw = localStorage.getItem(STORE_KEY);
   let st = null;
@@ -56,19 +64,28 @@ function loadState() {
   if (!st) {
     st = {
       apiUrl: '',
-      currentUser: { name: 'ศิริพร', position: 'เจ้าพนักงานวิทยาศาสตร์การแพทย์', role: 'staff' },
-      staffPin: '1111',
-      headPin: '1234',
-      items: (window.SEED_ITEMS || []).map(x => ({ ...x })),
+      users: defaultUsers(),
+      currentUser: null,
+      items: (window.SEED_ITEMS || []).filter(x => x.group && x.group.trim() !== '').map(x => ({ ...x })),
       vendors: (window.SEED_VENDORS || []).map(x => ({ ...x })),
       prs: [], pos: [], receives: [], evals: [],
-      logs: [{ id: 'LOG-001', ts: new Date().toISOString(), user: 'System', action: 'INIT', detail: 'เริ่มต้นระบบ Web App พร้อมข้อมูล 207 รายการ' }]
+      logs: [{ id: 'LOG-001', ts: new Date().toISOString(), user: 'System', action: 'INIT', detail: 'เริ่มต้นระบบ Web App พร้อมข้อมูล 201 รายการ' }]
     };
   }
-  if (!st.currentUser) st.currentUser = { name: 'ศิริพร', position: 'นักเทคนิคการแพทย์', role: 'staff' };
-  if (!st.staffPin) st.staffPin = '1111';
-  if (!st.headPin) st.headPin = '1234';
+  st.items = (st.items || []).filter(x => x.group && x.group.trim() !== '');
+  if (!st.users || !st.users.length) st.users = defaultUsers();
+  if (!st.users.some(u => u.role === 'admin')) st.users.push(defaultUsers()[2]);
   return st;
+}
+
+function isHeadOrAdmin() {
+  return STATE.currentUser && (STATE.currentUser.role === 'head' || STATE.currentUser.role === 'admin');
+}
+
+function roleLabel(role) {
+  if (role === 'admin') return 'Admin';
+  if (role === 'head') return 'หัวหน้า';
+  return 'ผู้รับผิดชอบ';
 }
 
 function saveState() {
@@ -134,10 +151,12 @@ function updateBadges() {
   if (syncBtn) syncBtn.style.display = STATE.apiUrl ? 'inline-block' : 'none';
 
   const ub = document.getElementById('userBadge');
-  ub.innerText = STATE.currentUser.role === 'head'
-    ? `หัวหน้า: ${STATE.currentUser.name} (${STATE.currentUser.position || ''})`
-    : `ผู้รับผิดชอบ: ${STATE.currentUser.name} (${STATE.currentUser.position || ''})`;
-  ub.className = STATE.currentUser.role === 'head' ? 'badge b-ok' : 'badge b-warn';
+  const setBtn = document.getElementById('settingsBtn');
+  if (STATE.currentUser) {
+    ub.innerText = `${roleLabel(STATE.currentUser.role)}: ${STATE.currentUser.name}`;
+    ub.className = STATE.currentUser.role === 'admin' ? 'badge b-admin' : (STATE.currentUser.role === 'head' ? 'badge b-ok' : 'badge b-warn');
+    if (setBtn) setBtn.style.display = isHeadOrAdmin() ? 'inline-block' : 'none';
+  }
 }
 
 function switchTab(tab, btn) {
@@ -194,11 +213,11 @@ function renderStockTab() {
         <td class="center">${it.min}</td>
         <td class="center">${it.max}</td>
         <td class="center"><span class="badge ${badgeCls}">${st}</span></td>
-        <td class="center"><input type="number" class="pr-qty" data-id="${it.itemId}" value="${suggested > 0 ? suggested : ''}" min="0" placeholder="........." style="width:75px;text-align:center"></td>
+        <td class="center"><input type="number" class="pr-qty" data-id="${it.itemId}" value="" min="0" placeholder="${suggested > 0 ? 'แนะนำ ' + suggested : '.........'}" style="width:92px;text-align:center"></td>
       </tr>`;
     }).join('');
-    tablesHtml += `<div style="background:#e2e8f0;padding:6px 10px;font-weight:700;border:1px solid #94a3b8;margin-top:10px">กลุ่มงาน: ${g} (${grouped[g].length} รายการ)</div>
-      <table><tr><th>ลำดับ</th><th>ชื่อน้ำยา / วัสดุ</th><th>คงเหลือ</th><th>ค้างรับ PO</th><th>Min</th><th>MAX</th><th>สถานะ</th><th>จำนวนเสนอซื้อ</th></tr>${rows}</table>`;
+    tablesHtml += `<div style="background:#eef2ff;color:#3730a3;padding:7px 12px;font-weight:700;border:1px solid #c7d2fe;border-radius:10px 10px 0 0;margin-top:12px">กลุ่มงาน: ${g} (${grouped[g].length} รายการ)</div>
+      <table style="margin-top:0"><tr><th>ลำดับ</th><th>ชื่อน้ำยา / วัสดุ</th><th>คงเหลือ</th><th>ค้างรับ PO</th><th>Min</th><th>MAX</th><th>สถานะ</th><th>จำนวนเสนอซื้อ</th></tr>${rows}</table>`;
   });
 
   document.getElementById('mainContent').innerHTML = `
@@ -267,7 +286,10 @@ function createPRFromTable() {
 // TAB 2: HEAD APPROVE PR (with คงเหลือ / Min / MAX) & CLEAN PO TABLE (Image 1)
 // ============================================================================
 function renderApproveTab() {
+  const canApprove = isHeadOrAdmin();
   const pendingIds = [...new Set(STATE.prs.filter(p => p.status === 'รออนุมัติ').map(p => p.prId))];
+  let lockNotice = !canApprove ? `<div class="lock-banner">🔒 หน้าส่วนการอนุมัติถูกล็อกสิทธิ์: เฉพาะ <b>หัวหน้าห้องปฏิบัติการ</b> หรือ <b>Admin</b> เท่านั้นที่มีสิทธิ์แก้ไขจำนวนและกดอนุมัติ (ผู้รับผิดชอบดูรายการสั่งซื้อด้านล่างได้)</div>` : '';
+
   let pendingHtml = pendingIds.length ? pendingIds.map(prId => {
     const lines = STATE.prs.filter(p => p.prId === prId && p.status === 'รออนุมัติ');
     const rows = lines.map(l => {
@@ -280,7 +302,7 @@ function renderApproveTab() {
         <td class="center">${it.min}</td>
         <td class="center">${it.max}</td>
         <td class="center">${l.reqQty}</td>
-        <td class="center"><input type="number" class="app-qty-${prId}" data-item="${l.itemId}" value="${l.reqQty}" min="0" style="width:70px;text-align:center"></td>
+        <td class="center"><input type="number" class="app-qty-${prId}" data-item="${l.itemId}" value="${l.reqQty}" min="0" style="width:70px;text-align:center" ${canApprove ? '' : 'disabled'}></td>
         <td class="center">${(l.reqQty * l.unitPrice).toLocaleString()}</td>
       </tr>`;
     }).join('');
@@ -289,14 +311,14 @@ function renderApproveTab() {
         <div><b>${prId}</b> | วันที่ขอ: ${toThaiShort(lines[0].date)} | ผู้ขอ: ${lines[0].requester} (${lines.length} รายการ)</div>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div class="field" style="min-width:130px"><label>กำหนดส่งมอบ (Due)</label>
-            <input id="due_${prId}" type="date" value="${new Date(Date.now()+14*86400000).toISOString().slice(0,10)}">
+            <input id="due_${prId}" type="date" value="${new Date(Date.now()+14*86400000).toISOString().slice(0,10)}" ${canApprove ? '' : 'disabled'}>
           </div>
-          <button class="btn btn-green" onclick="approvePR('${prId}')">อนุมัติ & แยก PO ตามบริษัท</button>
-          <button class="btn btn-red" onclick="rejectPR('${prId}')">ไม่อนุมัติ</button>
+          ${canApprove ? `<button class="btn btn-green" onclick="approvePR('${prId}')">อนุมัติ & แยก PO ตามบริษัท</button>
+          <button class="btn btn-red" onclick="rejectPR('${prId}')">ไม่อนุมัติ</button>` : `<span class="badge b-red">🔒 ล็อกสำหรับหัวหน้า/Admin</span>`}
         </div>
       </div>
       <table>
-        <tr><th>ชื่อน้ำยา / บริษัท</th><th>คงเหลือ</th><th>ค้างรับ PO</th><th>Min</th><th>MAX</th><th>เสนอซื้อ</th><th>จำนวนอนุมัติ (แก้ได้)</th><th>มูลค่าประมาณ (บ.)</th></tr>
+        <tr><th>ชื่อน้ำยา / บริษัท</th><th>คงเหลือ</th><th>ค้างรับ PO</th><th>Min</th><th>MAX</th><th>เสนอซื้อ</th><th>จำนวนอนุมัติ</th><th>มูลค่าประมาณ (บ.)</th></tr>
         ${rows}
       </table>
     </div>`;
@@ -325,19 +347,19 @@ function renderApproveTab() {
       </tr>`;
     }).join('');
     return `<div style="margin-top:14px">
-      <div style="background:#1b365d;color:#fff;padding:7px 12px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;font-weight:700">
+      <div style="background:#eef2ff;color:#3730a3;padding:8px 14px;border:1px solid #c7d2fe;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;font-weight:700">
         <span>บริษัท: ${grp.vendor}</span>
         <span>วันที่สั่ง: ${grp.dateBE} (${grp.items.length} รายการ)</span>
       </div>
       <table style="margin-top:0">
-        <tr><th style="width:45px;background:#334155">ลำดับ</th><th style="background:#334155">กลุ่มงาน</th><th style="background:#334155">รายการน้ำยา / วัสดุ</th><th style="background:#334155">เลข PO</th><th style="background:#334155">สั่งซื้อ</th><th style="background:#334155">รับแล้ว</th><th style="background:#334155">ค้างรับ</th><th style="background:#334155">สถานะ</th></tr>
+        <tr><th style="width:45px">ลำดับ</th><th>กลุ่มงาน</th><th>รายการน้ำยา / วัสดุ</th><th>เลข PO</th><th>สั่งซื้อ</th><th>รับแล้ว</th><th>ค้างรับ</th><th>สถานะ</th></tr>
         ${rows}
       </table>
     </div>`;
   }).join('') : '<p style="color:#64748b">ยังไม่มีรายการสั่งซื้อ (PO) — เมื่อหัวหน้าอนุมัติ PR รายการจะแสดงที่นี่</p>';
 
   document.getElementById('mainContent').innerHTML = `
-    <div class="no-print"><h3 style="margin-top:0">รายการรออนุมัติ (สำหรับหัวหน้า)</h3>${pendingHtml}</div>
+    <div class="no-print"><h3 style="margin-top:0">รายการรออนุมัติ (เฉพาะหัวหน้า / Admin)</h3>${lockNotice}${pendingHtml}</div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px" class="no-print">
         <h3 style="margin:0">ใบสั่งน้ำยาแยกตามบริษัทผู้ขาย (สำหรับติดตามการรับเข้า)</h3>
@@ -352,9 +374,8 @@ function renderApproveTab() {
 }
 
 function approvePR(prId) {
-  if (STATE.currentUser.role !== 'head') {
-    if (!confirm('คุณกำลังใช้งานในบทบาท "ผู้รับผิดชอบ" ต้องการสลับเป็น "หัวหน้า" เพื่ออนุมัติหรือไม่?')) return;
-    openLoginModal();
+  if (!isHeadOrAdmin()) {
+    alert('🔒 เฉพาะหัวหน้าห้องปฏิบัติการ หรือ Admin เท่านั้นที่มีสิทธิ์อนุมัติ');
     return;
   }
   const due = document.getElementById('due_' + prId).value;
@@ -400,7 +421,7 @@ function approvePR(prId) {
 }
 
 function rejectPR(prId) {
-  if (STATE.currentUser.role !== 'head') { alert('เฉพาะบทบาท "หัวหน้า" เท่านั้นที่ไม่อนุมัติได้'); return openLoginModal(); }
+  if (!isHeadOrAdmin()) { alert('🔒 เฉพาะหัวหน้าห้องปฏิบัติการ หรือ Admin เท่านั้นที่ไม่อนุมัติได้'); return; }
   STATE.prs.filter(p => p.prId === prId && p.status === 'รออนุมัติ').forEach(p => { p.status = 'ไม่อนุมัติ'; });
   const approverFull = `${STATE.currentUser.name} (${STATE.currentUser.position || 'หัวหน้าห้องปฏิบัติการ'})`;
   addLog('REJECT_PR', `ไม่อนุมัติ ${prId}`);
@@ -741,70 +762,118 @@ function renderAuditTab() {
     </div>`;
 }
 
-function openLoginModal() {
-  document.getElementById('modalBody').innerHTML = `
-    <h3 style="margin-top:0">เข้าสู่ระบบ (ระบุชื่อ-ตำแหน่งสำหรับบันทึกอนุมัติ & Audit Log)</h3>
-    <div class="toolbar">
-      <div class="field"><label>ชื่อ-นามสกุล</label><input id="uName" value="${STATE.currentUser.name}" placeholder="เช่น นางสาวมาริณี วัยอุดานนท์"></div>
-      <div class="field"><label>ตำแหน่ง</label><input id="uPos" value="${STATE.currentUser.position || ''}" placeholder="เช่น นักเทคนิคการแพทย์ชำนาญการ"></div>
-      <div class="field"><label>บทบาท</label>
-        <select id="uRole">
-          <option value="staff" ${STATE.currentUser.role==='staff'?'selected':''}>ผู้รับผิดชอบคลัง</option>
-          <option value="head" ${STATE.currentUser.role==='head'?'selected':''}>หัวหน้าห้องปฏิบัติการ</option>
-        </select>
-      </div>
-      <div class="field"><label>รหัสผ่าน (PIN)</label>
-        <input id="uPin" type="password" placeholder="ผู้รับผิดชอบ: 1111 / หัวหน้า: 1234">
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
-      <button class="btn btn-green" onclick="doLogin()">เข้าสู่ระบบ</button>
-    </div>`;
-  document.getElementById('modalBackdrop').style.display = 'flex';
+// ============================================================================
+// LOGIN GATE & USER MANAGEMENT
+// ============================================================================
+function initLoginGate() {
+  const sel = document.getElementById('loginUserSelect');
+  sel.innerHTML = STATE.users.map((u, i) => `<option value="${i}">${u.name} (${roleLabel(u.role)})</option>`).join('');
+  onSelectLoginUser();
+  if (sessionStorage.getItem('lab_logged_in') && STATE.currentUser) {
+    document.getElementById('loginGate').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    render();
+    if (STATE.apiUrl) loadFromGoogleSheets();
+  } else {
+    document.getElementById('loginGate').style.display = 'flex';
+    document.getElementById('appShell').style.display = 'none';
+  }
 }
 
-function doLogin() {
-  const role = document.getElementById('uRole').value;
-  const name = document.getElementById('uName').value.trim();
-  const pos = document.getElementById('uPos').value.trim();
-  const pin = document.getElementById('uPin').value.trim();
-  if (!name) return alert('กรุณากรอกชื่อ-นามสกุล');
-  const expected = role === 'head' ? STATE.headPin : STATE.staffPin;
-  if (pin !== expected) return alert('รหัสผ่าน (PIN) ไม่ถูกต้อง');
+function onSelectLoginUser() {
+  const idx = document.getElementById('loginUserSelect').value;
+  const u = STATE.users[idx];
+  if (u) document.getElementById('loginPosition').value = u.position || '-';
+}
 
-  STATE.currentUser = { name, position: pos, role };
+function submitLogin() {
+  const idx = document.getElementById('loginUserSelect').value;
+  const u = STATE.users[idx];
+  const pin = document.getElementById('loginPin').value.trim();
+  if (!u || pin !== u.pin) return alert('รหัสผ่าน (PIN) ไม่ถูกต้อง กรุณาลองใหม่');
+
+  STATE.currentUser = { id: u.id, name: u.name, position: u.position, role: u.role };
   sessionStorage.setItem('lab_logged_in', '1');
-  addLog('LOGIN', `เข้าสู่ระบบ: ${name} (${pos})`);
+  document.getElementById('loginPin').value = '';
+  addLog('LOGIN', `เข้าสู่ระบบ: ${u.name} (${u.position})`);
   saveState();
-  closeModal();
+  document.getElementById('loginGate').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
   render();
+  if (STATE.apiUrl) loadFromGoogleSheets();
+}
+
+function logout() {
+  sessionStorage.removeItem('lab_logged_in');
+  STATE.currentUser = null;
+  initLoginGate();
 }
 
 function openSettings() {
+  if (!isHeadOrAdmin()) return alert('🔒 เฉพาะหัวหน้า หรือ Admin เท่านั้นที่เข้าถึงการตั้งค่าและจัดการผู้ใช้ได้');
+  const userRows = STATE.users.map((u, i) => `
+    <tr>
+      <td>${u.name}</td>
+      <td>${u.position}</td>
+      <td class="center"><span class="badge ${u.role==='admin'?'b-admin':(u.role==='head'?'b-ok':'b-warn')}">${roleLabel(u.role)}</span></td>
+      <td class="center"><input id="upin_${i}" value="${u.pin}" style="width:70px;text-align:center"></td>
+      <td class="center">${STATE.users.length > 1 && u.role !== 'admin' ? `<button class="btn btn-red" style="padding:4px 8px" onclick="deleteUser(${i})">ลบ</button>` : '-'}</td>
+    </tr>`).join('');
+
   document.getElementById('modalBody').innerHTML = `
-    <h3 style="margin-top:0">ตั้งค่าเชื่อมต่อ Google Sheets & เปลี่ยนรหัสผ่าน</h3>
+    <h3 style="margin-top:0">ตั้งค่าเชื่อมต่อ Google Sheets & จัดการผู้ใช้งาน</h3>
     <div class="field"><label>Apps Script Web App URL (เว้นว่าง = โหมดทดลอง Local)</label>
       <input id="sApi" value="${STATE.apiUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec">
-    </div><br>
-    <div class="toolbar">
-      <div class="field"><label>รหัส PIN ผู้รับผิดชอบ (ปัจจุบัน: ${STATE.staffPin})</label><input id="sStaffPin" value="${STATE.staffPin}"></div>
-      <div class="field"><label>รหัส PIN หัวหน้า (ปัจจุบัน: ${STATE.headPin})</label><input id="sHeadPin" value="${STATE.headPin}"></div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:10px">
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+    <h4 style="margin:0 0 8px 0">รายชื่อผู้ใช้งาน & เปลี่ยนรหัส PIN</h4>
+    <table><tr><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>บทบาท</th><th>PIN</th><th>จัดการ</th></tr>${userRows}</table>
+    <div style="background:#f8fafc;padding:12px;border-radius:12px;margin-top:12px;border:1px solid #e2e8f0">
+      <div style="font-weight:700;margin-bottom:8px">+ เพิ่มผู้ใช้งานใหม่</div>
+      <div class="toolbar" style="margin-bottom:0">
+        <div class="field"><label>ชื่อ-นามสกุล</label><input id="newUName" placeholder="เช่น นายสมชาย ใจดี"></div>
+        <div class="field"><label>ตำแหน่ง</label><input id="newUPos" placeholder="เช่น นักเทคนิคการแพทย์"></div>
+        <div class="field" style="min-width:130px"><label>บทบาท</label>
+          <select id="newURole"><option value="staff">ผู้รับผิดชอบ</option><option value="head">หัวหน้า</option><option value="admin">Admin</option></select>
+        </div>
+        <div class="field" style="min-width:90px"><label>PIN 4 หลัก</label><input id="newUPin" placeholder="เช่น 2222"></div>
+        <button class="btn btn-green" onclick="addUser()">+ เพิ่มผู้ใช้</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px">
       <button class="btn btn-red" onclick="if(confirm('รีเซ็ตข้อมูลทดลองทั้งหมด?')){localStorage.removeItem('${STORE_KEY}');sessionStorage.removeItem('lab_logged_in');location.reload();}">รีเซ็ตข้อมูลทดลอง</button>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="closeModal()">ปิด</button>
-        <button class="btn btn-green" onclick="saveSettings()">บันทึกการตั้งค่า</button>
+        <button class="btn btn-green" onclick="saveSettings()">บันทึกทั้งหมด</button>
       </div>
     </div>`;
   document.getElementById('modalBackdrop').style.display = 'flex';
+}
+
+function addUser() {
+  const name = document.getElementById('newUName').value.trim();
+  const position = document.getElementById('newUPos').value.trim();
+  const role = document.getElementById('newURole').value;
+  const pin = document.getElementById('newUPin').value.trim();
+  if (!name || !pin) return alert('กรุณากรอกชื่อ-นามสกุล และรหัส PIN');
+  STATE.users.push({ id: 'U-' + String(STATE.users.length + 1).padStart(2, '0'), name, position, role, pin });
+  saveState();
+  openSettings();
+}
+
+function deleteUser(idx) {
+  if (!confirm(`ต้องการลบผู้ใช้ "${STATE.users[idx].name}" ใช่หรือไม่?`)) return;
+  STATE.users.splice(idx, 1);
+  saveState();
+  openSettings();
 }
 
 function saveSettings() {
   STATE.apiUrl = document.getElementById('sApi').value.trim();
-  STATE.staffPin = document.getElementById('sStaffPin').value.trim() || '1111';
-  STATE.headPin = document.getElementById('sHeadPin').value.trim() || '1234';
+  STATE.users.forEach((u, i) => {
+    const inp = document.getElementById('upin_' + i);
+    if (inp && inp.value.trim()) u.pin = inp.value.trim();
+  });
   saveState();
   closeModal();
   if (STATE.apiUrl) loadFromGoogleSheets();
@@ -827,7 +896,7 @@ async function loadFromGoogleSheets() {
     const r = await fetch(STATE.apiUrl);
     const data = await r.json();
     if (data && data.ok) {
-      if (data.items && data.items.length) STATE.items = data.items;
+      if (data.items && data.items.length) STATE.items = data.items.filter(x => x.group && x.group.trim() !== '');
       if (data.prs) STATE.prs = data.prs;
       if (data.pos) STATE.pos = data.pos;
       if (data.receives) STATE.receives = data.receives;
@@ -839,6 +908,4 @@ async function loadFromGoogleSheets() {
   } catch (e) { alert('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้: ' + e.message); }
 }
 
-render();
-if (STATE.apiUrl) loadFromGoogleSheets();
-if (!sessionStorage.getItem('lab_logged_in')) openLoginModal();
+initLoginGate();
